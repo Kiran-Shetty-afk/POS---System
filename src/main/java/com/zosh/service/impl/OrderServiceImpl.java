@@ -14,6 +14,7 @@ import com.zosh.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -27,9 +28,11 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final BranchRepository branchRepository;
+    private final InventoryRepository inventoryRepository;
     private final UserService userService;
 
     @Override
+    @Transactional
     public OrderDTO createOrder(OrderDTO dto) throws UserException {
         User cashier = userService.getCurrentUser();
 
@@ -50,12 +53,27 @@ public class OrderServiceImpl implements OrderService {
             Product product = productRepository.findById(itemDto.getProductId())
                     .orElseThrow(() -> new EntityNotFoundException("Product not found"));
 
+            int requestedQty = itemDto.getQuantity();
+            if (requestedQty <= 0) {
+                throw new IllegalArgumentException("Quantity must be greater than zero for product: " + product.getName());
+            }
+
+            // Attempt atomic decrement to avoid race conditions
+            int updated = inventoryRepository.decrementIfEnough(branch.getId(), product.getId(), requestedQty);
+            if (updated == 0) {
+                // Check if inventory exists to give a clearer message
+                boolean exists = inventoryRepository.findByBranchIdAndProductId(branch.getId(), product.getId()).isPresent();
+                if (!exists) {
+                    throw new EntityNotFoundException("Inventory not found for product in this branch: " + product.getName());
+                }
+                throw new IllegalStateException("Insufficient stock for product: " + product.getName());
+            }
+
             return OrderItem.builder()
                     .product(product)
-                    .quantity(itemDto.getQuantity())
-                    .price(product.getSellingPrice() * itemDto.getQuantity())
+                    .quantity(requestedQty)
+                    .price(product.getSellingPrice() * requestedQty)
                     .order(order)
-
                     .build();
         }).toList();
 
