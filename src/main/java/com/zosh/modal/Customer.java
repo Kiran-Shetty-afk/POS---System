@@ -1,5 +1,6 @@
 package com.zosh.modal;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.zosh.domain.UserRole;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
@@ -18,6 +19,7 @@ import java.time.LocalDateTime;
 @Setter
 @AllArgsConstructor
 @NoArgsConstructor
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Customer {
 
     @Id
@@ -31,6 +33,8 @@ public class Customer {
 
     private String phone;
 
+    @Column(nullable = false)
+    private Integer loyaltyPoints = 0;
 
     @Column(nullable = false, updatable = false)
     @CreationTimestamp
@@ -40,4 +44,26 @@ public class Customer {
     @UpdateTimestamp
     private LocalDateTime updatedAt;
 
+    @PrePersist
+    @PreUpdate
+    private void ensureDefaults() {
+        if (loyaltyPoints == null) {
+            loyaltyPoints = 0;
+        }
+    }
+
+    @Transient
+    public String getLoyaltyStatus() {
+        int points = loyaltyPoints == null ? 0 : loyaltyPoints;
+        if (points >= 500) {
+            return "Gold";
+        }
+        if (points >= 200) {
+            return "Silver";
+        }
+        if (points > 0) {
+            return "Bronze";
+        }
+        return "None";
+    }
 }

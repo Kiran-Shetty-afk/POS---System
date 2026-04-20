@@ -2,6 +2,7 @@ package com.zosh.controller;
 
 import com.zosh.exception.ResourceNotFoundException;
 import com.zosh.modal.Customer;
+import com.zosh.payload.dto.LoyaltyPointsUpdateRequest;
 import com.zosh.service.CustomerService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -48,6 +49,14 @@ public class CustomerController {
     @GetMapping
     public ResponseEntity<List<Customer>> getAll() {
         return ResponseEntity.ok(customerService.getAllCustomers());
+    }
+
+    @PostMapping("/{id}/loyalty-points")
+    public ResponseEntity<Customer> addLoyaltyPoints(
+            @PathVariable Long id,
+            @RequestBody LoyaltyPointsUpdateRequest request
+    ) throws ResourceNotFoundException {
+        return ResponseEntity.ok(customerService.addLoyaltyPoints(id, request.getPoints()));
     }
 
 

@@ -27,6 +27,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final BranchRepository branchRepository;
+    private final CustomerRepository customerRepository;
     private final InventoryConsistencyService inventoryConsistencyService;
     private final UserService userService;
 
@@ -41,10 +42,11 @@ public class OrderServiceImpl implements OrderService {
             throw new UserException("cashier's branch is null");
         }
 
+        Customer customer = resolveCustomer(dto.getCustomer());
         Order order = Order.builder()
                 .branch(branch)
                 .cashier(cashier)
-                .customer(dto.getCustomer())
+                .customer(customer)
                 .paymentType(dto.getPaymentType())
                 .build();
 
@@ -70,6 +72,10 @@ public class OrderServiceImpl implements OrderService {
         double total = orderItems.stream().mapToDouble(OrderItem::getPrice).sum();
         order.setTotalAmount(total);
         order.setItems(orderItems);
+
+        if (customer != null) {
+            customer.setLoyaltyPoints(currentLoyaltyPoints(customer) + calculatePointsEarned(total));
+        }
 
         return OrderMapper.toDto(orderRepository.save(order));
     }
@@ -166,6 +172,30 @@ public class OrderServiceImpl implements OrderService {
         return orders.stream()
                 .map(OrderMapper::toDto)
                 .collect(Collectors.toList());
+    }
+
+    private Customer resolveCustomer(Customer requestedCustomer) {
+        if (requestedCustomer == null) {
+            return null;
+        }
+        if (requestedCustomer.getId() == null) {
+            throw new IllegalArgumentException("Customer id is required when attaching a customer to an order");
+        }
+
+        return customerRepository.findById(requestedCustomer.getId())
+                .orElseThrow(() -> new EntityNotFoundException("Customer not found"));
+    }
+
+    private int calculatePointsEarned(double totalAmount) {
+        if (totalAmount <= 0) {
+            return 0;
+        }
+
+        return Math.max(1, (int) Math.floor(totalAmount / 100.0));
+    }
+
+    private int currentLoyaltyPoints(Customer customer) {
+        return customer.getLoyaltyPoints() == null ? 0 : customer.getLoyaltyPoints();
     }
 
 }

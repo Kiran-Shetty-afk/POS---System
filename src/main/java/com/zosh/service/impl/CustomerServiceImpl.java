@@ -18,6 +18,9 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public Customer createCustomer(Customer customer) {
+        if (customer.getLoyaltyPoints() == null) {
+            customer.setLoyaltyPoints(0);
+        }
         return customerRepository.save(customer);
     }
 
@@ -30,6 +33,9 @@ public class CustomerServiceImpl implements CustomerService {
         customer.setFullName(customerData.getFullName());
         customer.setEmail(customerData.getEmail());
         customer.setPhone(customerData.getPhone());
+        if (customerData.getLoyaltyPoints() != null) {
+            customer.setLoyaltyPoints(customerData.getLoyaltyPoints());
+        }
 
         return customerRepository.save(customer);
     }
@@ -55,6 +61,19 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public List<Customer> searchCustomer(String keyword) {
         return customerRepository.findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCase(keyword, keyword);
+    }
+
+    @Override
+    public Customer addLoyaltyPoints(Long id, Integer points) throws ResourceNotFoundException {
+        if (points == null || points <= 0) {
+            throw new IllegalArgumentException("Points must be greater than zero");
+        }
+
+        Customer customer = customerRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Customer not found with id " + id));
+
+        customer.setLoyaltyPoints((customer.getLoyaltyPoints() == null ? 0 : customer.getLoyaltyPoints()) + points);
+        return customerRepository.save(customer);
     }
 
 }
