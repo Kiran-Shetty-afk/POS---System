@@ -13,6 +13,7 @@ public interface InventoryService {
     void deleteInventory(Long id) throws AccessDeniedException, UserException;
     InventoryDTO getInventoryById(Long id);
     InventoryDTO getInventoryByProductId(Long productId);
+    InventoryDTO getInventoryByBranchAndProduct(Long branchId, Long productId);
     List<InventoryDTO> getInventoryByBranch(Long branchId);
 
 }

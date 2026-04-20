@@ -2,6 +2,7 @@ package com.zosh.exception;
 
 
 import com.zosh.payload.response.ExceptionResponse;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -65,6 +66,39 @@ public class GlobalExceptionHandler {
 				LocalDateTime.now()
 		);
 		return new ResponseEntity<>(response,HttpStatus.NOT_FOUND);
+	}
+
+	@ExceptionHandler(EntityNotFoundException.class)
+	public ResponseEntity<ExceptionResponse> EntityNotFoundExceptionHandler(
+			EntityNotFoundException ex, WebRequest req) {
+		ExceptionResponse response = new ExceptionResponse(
+				ex.getMessage(),
+				req.getDescription(false),
+				LocalDateTime.now()
+		);
+		return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+	}
+
+	@ExceptionHandler(IllegalStateException.class)
+	public ResponseEntity<ExceptionResponse> IllegalStateExceptionHandler(
+			IllegalStateException ex, WebRequest req) {
+		ExceptionResponse response = new ExceptionResponse(
+				ex.getMessage(),
+				req.getDescription(false),
+				LocalDateTime.now()
+		);
+		return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+	}
+
+	@ExceptionHandler(IllegalArgumentException.class)
+	public ResponseEntity<ExceptionResponse> IllegalArgumentExceptionHandler(
+			IllegalArgumentException ex, WebRequest req) {
+		ExceptionResponse response = new ExceptionResponse(
+				ex.getMessage(),
+				req.getDescription(false),
+				LocalDateTime.now()
+		);
+		return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
 	}
 
 

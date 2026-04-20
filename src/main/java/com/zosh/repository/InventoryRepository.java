@@ -1,8 +1,9 @@
 package com.zosh.repository;
 
 import com.zosh.modal.Inventory;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
-import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -10,20 +11,20 @@ import java.util.List;
 import java.util.Optional;
 
 public interface InventoryRepository extends JpaRepository<Inventory, Long> {
-    Inventory findByProductId(Long productId);
-    List<Inventory> findByBranchId(Long branchId);
+    Optional<Inventory> findFirstByProductIdOrderByIdAsc(Long productId);
+    List<Inventory> findByBranchIdOrderByIdAsc(Long branchId);
 
-    Optional<Inventory> findByBranchIdAndProductId(Long branchId, Long productId);
+    List<Inventory> findAllByBranchIdAndProductIdOrderByIdAsc(Long branchId, Long productId);
 
-    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
-        UPDATE Inventory i
-        SET i.quantity = i.quantity - :qty
-        WHERE i.branch.id = :branchId AND i.product.id = :productId AND i.quantity >= :qty
+        SELECT i
+        FROM Inventory i
+        WHERE i.branch.id = :branchId AND i.product.id = :productId
+        ORDER BY i.id ASC
     """)
-    int decrementIfEnough(@Param("branchId") Long branchId,
-                          @Param("productId") Long productId,
-                          @Param("qty") int qty);
+    List<Inventory> findAllByBranchIdAndProductIdForUpdate(@Param("branchId") Long branchId,
+                                                           @Param("productId") Long productId);
 
     @Query("""
         SELECT COUNT(i)

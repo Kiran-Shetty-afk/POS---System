@@ -8,7 +8,6 @@ import com.zosh.mapper.OrderMapper;
 import com.zosh.modal.*;
 import com.zosh.payload.dto.OrderDTO;
 import com.zosh.repository.*;
-
 import com.zosh.service.OrderService;
 import com.zosh.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
@@ -28,7 +27,7 @@ public class OrderServiceImpl implements OrderService {
     private final OrderRepository orderRepository;
     private final ProductRepository productRepository;
     private final BranchRepository branchRepository;
-    private final InventoryRepository inventoryRepository;
+    private final InventoryConsistencyService inventoryConsistencyService;
     private final UserService userService;
 
     @Override
@@ -58,16 +57,7 @@ public class OrderServiceImpl implements OrderService {
                 throw new IllegalArgumentException("Quantity must be greater than zero for product: " + product.getName());
             }
 
-            // Attempt atomic decrement to avoid race conditions
-            int updated = inventoryRepository.decrementIfEnough(branch.getId(), product.getId(), requestedQty);
-            if (updated == 0) {
-                // Check if inventory exists to give a clearer message
-                boolean exists = inventoryRepository.findByBranchIdAndProductId(branch.getId(), product.getId()).isPresent();
-                if (!exists) {
-                    throw new EntityNotFoundException("Inventory not found for product in this branch: " + product.getName());
-                }
-                throw new IllegalStateException("Insufficient stock for product: " + product.getName());
-            }
+            inventoryConsistencyService.decrementStock(branch.getId(), product.getId(), requestedQty);
 
             return OrderItem.builder()
                     .product(product)
