@@ -56,7 +56,7 @@ public class SecurityConfig {
 						"http://localhost:5173",
 						"https://zosh-pos.vercel.app",
 						"https://pos-sytem-bcs6.vercel.app",
-						"https://frontend.up.railway.app"
+						"https://inventa.up.railway.app"
 				));
 				cfg.setAllowedMethods(Collections.singletonList("*"));
 				cfg.setAllowCredentials(true);
