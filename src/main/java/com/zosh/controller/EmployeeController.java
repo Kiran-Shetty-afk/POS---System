@@ -57,18 +57,18 @@ public class EmployeeController {
 
     @GetMapping("/store/{storeId}")
     @PreAuthorize("hasAnyRole('ROLE_STORE_ADMIN', 'ROLE_STORE_MANAGER')")
-    public ResponseEntity<List<User>> findStoreEmployees(@PathVariable Long storeId) throws Exception {
-        List<User> employees = employeeService.findStoreEmployees(storeId, null);
+    public ResponseEntity<List<UserDTO>> findStoreEmployees(@PathVariable Long storeId) throws Exception {
+        List<UserDTO> employees = employeeService.findStoreEmployees(storeId, null);
         return new ResponseEntity<>(employees, HttpStatus.OK);
     }
 
     @GetMapping("/branch/{branchId}")
     @PreAuthorize("hasAnyRole('ROLE_BRANCH_ADMIN', 'ROLE_BRANCH_MANAGER')")
-    public ResponseEntity<List<User>> findBranchEmployees(
+    public ResponseEntity<List<UserDTO>> findBranchEmployees(
             @PathVariable Long branchId,
             @RequestParam(required = false) UserRole role
     ) throws Exception {
-        List<User> employees = employeeService.findBranchEmployees(branchId,role);
+        List<UserDTO> employees = employeeService.findBranchEmployees(branchId,role);
         return new ResponseEntity<>(employees, HttpStatus.OK);
     }
 }

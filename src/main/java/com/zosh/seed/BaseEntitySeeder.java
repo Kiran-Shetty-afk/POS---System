@@ -31,6 +31,7 @@ public class BaseEntitySeeder {
         List<Branch> branches = seedBranches(config, stores);
         List<Category> categories = seedCategories(stores);
         List<Product> products = seedProducts(config, stores, categories, random);
+        seedBranchManagers(branches);
         List<User> cashiers = seedCashiers(config, branches);
         List<Customer> customers = seedCustomers(config);
         int inventoriesCreated = seedInventory(branches, products, random);
@@ -94,6 +95,30 @@ public class BaseEntitySeeder {
         return stores;
     }
 
+    private void seedBranchManagers(List<Branch> branches) {
+        for (int i = 0; i < branches.size(); i++) {
+            Branch branch = branches.get(i);
+            String email = "bm" + (i + 1) + "@seed.local";
+            User manager = userRepository.findByEmail(email);
+            if (manager == null) {
+                manager = new User();
+            }
+
+            manager.setFullName("Branch Manager " + (i + 1));
+            manager.setEmail(email);
+            manager.setPassword(passwordEncoder.encode("12345678"));
+            manager.setPhone(String.format("7100000%03d", i + 1));
+            manager.setRole(UserRole.ROLE_BRANCH_MANAGER);
+            manager.setBranch(branch);
+            manager.setStore(branch.getStore());
+            manager.setVerified(true);
+            manager = userRepository.save(manager);
+
+            branch.setManager(manager);
+            branchRepository.save(branch);
+        }
+    }
+
     private List<Branch> seedBranches(SeedScenarioConfig config, List<Store> stores) {
         List<Branch> branches = new ArrayList<>();
         String[] branchSuffixes = {"Central", "North", "South", "East", "West", "Metro", "Mall", "Market"};
@@ -107,7 +132,15 @@ public class BaseEntitySeeder {
                     .email("branch." + (i + 1) + "@seed.local")
                     .phone(String.format("8000000%03d", i + 1))
                     .store(store)
-                    .workingDays(List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"))
+                    .workingDays(new ArrayList<>(List.of(
+                            "MONDAY",
+                            "TUESDAY",
+                            "WEDNESDAY",
+                            "THURSDAY",
+                            "FRIDAY",
+                            "SATURDAY",
+                            "SUNDAY"
+                    )))
                     .openTime(LocalTime.of(8, 0))
                     .closeTime(LocalTime.of(22, 0))
                     .build();

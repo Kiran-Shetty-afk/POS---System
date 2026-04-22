@@ -81,6 +81,19 @@ public class HistoricalSeedService {
                 .toList();
         List<Long> branchIds = branches.stream().map(Branch::getId).toList();
 
+        // Clear references before deleting branches/stores to avoid transient association flush errors.
+        List<User> usersWithDemoAssignments = userRepository.findAll().stream()
+                .filter(user -> (user.getBranch() != null && branchIds.contains(user.getBranch().getId()))
+                        || (user.getStore() != null && storeIds.contains(user.getStore().getId())))
+                .toList();
+        if (!usersWithDemoAssignments.isEmpty()) {
+            usersWithDemoAssignments.forEach(user -> {
+                user.setBranch(null);
+                user.setStore(null);
+            });
+            userRepository.saveAll(usersWithDemoAssignments);
+        }
+
         for (Long branchId : branchIds) {
             List<Refund> refunds = refundRepository.findByBranchId(branchId);
             if (!refunds.isEmpty()) {

@@ -13,6 +13,7 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 
 @Component
@@ -37,56 +38,54 @@ public class HistoricalOrderGenerator {
 
         List<Order> allOrders = new ArrayList<>();
         int createdOrders = 0;
-        for (LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
-            for (Branch branch : context.getBranches()) {
-                if (createdOrders >= config.getTargetOrders()) {
-                    break;
-                }
+        List<Branch> activeBranches = context.getBranches().stream()
+                .filter(branch -> {
+                    List<User> cashiers = context.getCashiersByBranchId().getOrDefault(branch.getId(), List.of());
+                    List<Product> products = context.getProductsByStoreId().getOrDefault(branch.getStore().getId(), List.of());
+                    return !cashiers.isEmpty() && !products.isEmpty();
+                })
+                .toList();
+
+        for (LocalDate date = startDate; !date.isAfter(endDate) && createdOrders < config.getTargetOrders(); date = date.plusDays(1)) {
+            int remainingOrders = config.getTargetOrders() - createdOrders;
+            int remainingDays = Math.max(1, (int) ChronoUnit.DAYS.between(date, endDate) + 1);
+            int dailyTarget = Math.max(1, (int) Math.round((double) remainingOrders / remainingDays));
+            dailyTarget = Math.min(remainingOrders, applyDailyNoise(dailyTarget, random));
+
+            for (int i = 0; i < dailyTarget && createdOrders < config.getTargetOrders(); i++) {
+                Branch branch = pickBranchForDate(activeBranches, context, date, random);
                 BranchBehaviorProfile profile = context.getBehaviorByBranchId().get(branch.getId());
-                int targetForDay = computeOrdersForDay(date, profile, random);
                 List<User> cashiers = context.getCashiersByBranchId().getOrDefault(branch.getId(), List.of());
-                if (cashiers.isEmpty()) {
-                    continue;
-                }
                 List<Product> branchProducts = context.getProductsByStoreId()
                         .getOrDefault(branch.getStore().getId(), List.of());
-                if (branchProducts.isEmpty()) {
+
+                User cashier = cashiers.get(random.nextInt(cashiers.size()));
+                Customer customer = pickCustomer(context.getCustomers(), repeatCandidates, random);
+                List<OrderItem> items = pickItems(branch, branchProducts, profile, random);
+                if (items.isEmpty()) {
                     continue;
                 }
 
-                for (int i = 0; i < targetForDay && createdOrders < config.getTargetOrders(); i++) {
-                    User cashier = cashiers.get(random.nextInt(cashiers.size()));
-                    Customer customer = pickCustomer(context.getCustomers(), repeatCandidates, random);
+                LocalDateTime createdAt = date.atTime(9 + random.nextInt(12), random.nextInt(60));
+                PaymentType paymentType = pickPaymentType(profile, random);
+                Order order = new Order();
+                order.setBranch(branch);
+                order.setCashier(cashier);
+                order.setCustomer(customer);
+                order.setCreatedAt(createdAt);
+                order.setPaymentType(paymentType);
+                order.setStatus(OrderStatus.COMPLETED);
 
-                    List<OrderItem> items = pickItems(branch, branchProducts, profile, random);
-                    if (items.isEmpty()) {
-                        continue;
-                    }
+                double totalAmount = items.stream().mapToDouble(OrderItem::getPrice).sum();
+                order.setTotalAmount(round2(totalAmount));
+                items.forEach(orderItem -> orderItem.setOrder(order));
+                order.setItems(items);
 
-                    LocalDateTime createdAt = date.atTime(9 + random.nextInt(12), random.nextInt(60));
-                    PaymentType paymentType = pickPaymentType(profile, random);
-                    Order order = new Order();
-                    order.setBranch(branch);
-                    order.setCashier(cashier);
-                    order.setCustomer(customer);
-                    order.setCreatedAt(createdAt);
-                    order.setPaymentType(paymentType);
-                    order.setStatus(OrderStatus.COMPLETED);
-
-                    double totalAmount = items.stream().mapToDouble(OrderItem::getPrice).sum();
-                    order.setTotalAmount(round2(totalAmount));
-                    items.forEach(orderItem -> orderItem.setOrder(order));
-                    order.setItems(items);
-
-                    Order saved = orderRepository.save(order);
-                    allOrders.add(saved);
-                    createdOrders++;
-                    metrics.getOrdersByBranch().merge(branch.getName(), 1, Integer::sum);
-                    metrics.getSalesByBranch().merge(branch.getName(), saved.getTotalAmount(), Double::sum);
-                }
-            }
-            if (createdOrders >= config.getTargetOrders()) {
-                break;
+                Order saved = orderRepository.save(order);
+                allOrders.add(saved);
+                createdOrders++;
+                metrics.getOrdersByBranch().merge(branch.getName(), 1, Integer::sum);
+                metrics.getSalesByBranch().merge(branch.getName(), saved.getTotalAmount(), Double::sum);
             }
         }
         metrics.setOrdersCreated(allOrders.size());
@@ -111,6 +110,39 @@ public class HistoricalOrderGenerator {
                 * seasonalSpike;
         int noise = random.nextInt(5) - 2;
         return Math.max(3, (int) Math.round(expected) + noise);
+    }
+
+    private int applyDailyNoise(int dailyTarget, Random random) {
+        int variance = Math.max(1, (int) Math.round(dailyTarget * 0.2));
+        int noise = random.nextInt((variance * 2) + 1) - variance;
+        return Math.max(1, dailyTarget + noise);
+    }
+
+    private Branch pickBranchForDate(List<Branch> activeBranches,
+                                     HistoricalSeedContext context,
+                                     LocalDate date,
+                                     Random random) {
+        if (activeBranches.size() == 1) {
+            return activeBranches.get(0);
+        }
+        double totalWeight = 0.0;
+        List<Double> weights = new ArrayList<>(activeBranches.size());
+        for (Branch branch : activeBranches) {
+            BranchBehaviorProfile profile = context.getBehaviorByBranchId().get(branch.getId());
+            double weight = Math.max(1.0, computeOrdersForDay(date, profile, random));
+            weights.add(weight);
+            totalWeight += weight;
+        }
+
+        double threshold = random.nextDouble() * totalWeight;
+        double cumulative = 0.0;
+        for (int i = 0; i < activeBranches.size(); i++) {
+            cumulative += weights.get(i);
+            if (threshold <= cumulative) {
+                return activeBranches.get(i);
+            }
+        }
+        return activeBranches.get(activeBranches.size() - 1);
     }
 
     private Customer pickCustomer(List<Customer> customers, List<Customer> repeatCandidates, Random random) {
