@@ -46,7 +46,9 @@ public class Order {
 
     @PrePersist
     public void onCreate() {
-        createdAt = LocalDateTime.now();
+        if (createdAt == null) {
+            createdAt = LocalDateTime.now();
+        }
     }
 }
 
