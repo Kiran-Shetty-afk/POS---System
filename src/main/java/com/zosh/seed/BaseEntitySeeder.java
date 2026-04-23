@@ -191,7 +191,7 @@ public class BaseEntitySeeder {
                         .brand(brands[i % brands.length])
                         .category(category)
                         .store(store)
-                        .image("https://placehold.co/300x300?text=" + name.replace(" ", "+"))
+                        .image(buildStockImageUrl(category.getName(), i + 1))
                         .build();
                 products.add(productRepository.save(product));
             }
@@ -224,16 +224,34 @@ public class BaseEntitySeeder {
     }
 
     private List<Customer> seedCustomers(SeedScenarioConfig config) {
+        String[] firstNames = {
+                "John", "Joseph", "Michael", "David", "James", "Robert", "Daniel", "William",
+                "Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Susan", "Jessica", "Sarah"
+        };
+        String[] lastNames = {
+                "Smith", "Johnson", "Brown", "Davis", "Miller", "Wilson", "Moore", "Taylor",
+                "Anderson", "Thomas", "Jackson", "White", "Harris", "Martin", "Thompson", "Clark"
+        };
+
         List<Customer> customers = new ArrayList<>();
         for (int i = 0; i < config.getCustomersCount(); i++) {
             Customer customer = new Customer();
-            customer.setFullName("Customer " + (i + 1));
+            String firstName = firstNames[i % firstNames.length];
+            String lastName = lastNames[(i / firstNames.length) % lastNames.length];
+            customer.setFullName(firstName + " " + lastName);
             customer.setEmail("customer." + (i + 1) + "@seed.local");
             customer.setPhone(String.format("600%07d", i + 1));
             customer.setLoyaltyPoints(0);
             customers.add(customerRepository.save(customer));
         }
         return customers;
+    }
+
+    private String buildStockImageUrl(String categoryName, int sequence) {
+        String normalizedCategory = categoryName == null
+                ? "product"
+                : categoryName.toLowerCase(Locale.ROOT).replace(" ", "-");
+        return "https://picsum.photos/seed/stock-" + normalizedCategory + "-" + sequence + "/640/640";
     }
 
     private int seedInventory(List<Branch> branches, List<Product> products, Random random) {

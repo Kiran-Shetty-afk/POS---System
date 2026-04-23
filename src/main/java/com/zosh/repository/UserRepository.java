@@ -26,8 +26,10 @@ public interface UserRepository extends JpaRepository<User, Long> {
 @Query("""
         SELECT COUNT(u)
         FROM User u
-        WHERE u.id IN (
-            SELECT s.storeAdmin.id FROM Store s WHERE s.storeAdmin.id = :storeAdminId
+        WHERE (
+            (u.store IS NOT NULL AND u.store.storeAdmin.id = :storeAdminId)
+            OR
+            (u.branch IS NOT NULL AND u.branch.store.storeAdmin.id = :storeAdminId)
         )
         AND u.role IN (:roles)
     """)

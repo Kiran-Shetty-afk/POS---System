@@ -11,7 +11,10 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.time.YearMonth;
+import java.time.temporal.WeekFields;
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -49,12 +52,83 @@ public class StoreAnalyticsServiceImpl implements StoreAnalyticsService {
 
     @Override
     public TimeSeriesDataDTO getSalesTrends(Long storeAdminId, String period) {
-    //        // Dummy data, replace with actual queries later
-    ////        List<TimeSeriesPointDTO> points = List.of(
-    ////                new TimeSeriesPointDTO("Week 1", BigDecimal.valueOf(4000)),
-    ////                new TimeSeriesPointDTO("Week 2", BigDecimal.valueOf(6200))
-    ////        );
-        return null;
+        String normalizedPeriod = period == null ? "daily" : period.toLowerCase(Locale.ROOT);
+        LocalDateTime end = LocalDateTime.now();
+        LocalDateTime start;
+
+        switch (normalizedPeriod) {
+            case "monthly" -> start = end.minusDays(365);
+            case "weekly" -> start = end.minusDays(84);
+            default -> start = end.minusDays(30);
+        }
+
+        List<Order> orders = orderRepository.findAllByStoreAdminAndCreatedAtBetween(storeAdminId, start, end);
+        List<TimeSeriesPointDTO> points;
+
+        if ("monthly".equals(normalizedPeriod)) {
+            Map<YearMonth, Double> grouped = orders.stream()
+                    .collect(Collectors.groupingBy(
+                            order -> YearMonth.from(order.getCreatedAt()),
+                            Collectors.summingDouble(order ->
+                                    order.getTotalAmount() != null ? order.getTotalAmount().doubleValue() : 0.0
+                            )
+                    ));
+
+            points = grouped.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(entry -> new TimeSeriesPointDTO(
+                            entry.getKey().atDay(1).atStartOfDay(),
+                            entry.getValue()
+                    ))
+                    .collect(Collectors.toList());
+        } else if ("weekly".equals(normalizedPeriod)) {
+            WeekFields weekFields = WeekFields.ISO;
+            Map<String, Double> grouped = orders.stream()
+                    .collect(Collectors.groupingBy(
+                            order -> {
+                                int week = order.getCreatedAt().get(weekFields.weekOfWeekBasedYear());
+                                int year = order.getCreatedAt().get(weekFields.weekBasedYear());
+                                return year + "-" + week;
+                            },
+                            Collectors.summingDouble(order ->
+                                    order.getTotalAmount() != null ? order.getTotalAmount().doubleValue() : 0.0
+                            )
+                    ));
+
+            points = grouped.entrySet().stream()
+                    .sorted(Comparator.comparing(Map.Entry::getKey))
+                    .map(entry -> {
+                        String[] parts = entry.getKey().split("-");
+                        int year = Integer.parseInt(parts[0]);
+                        int week = Integer.parseInt(parts[1]);
+                        LocalDateTime weekStart = LocalDateTime.now()
+                                .withYear(year)
+                                .with(weekFields.weekOfWeekBasedYear(), week)
+                                .with(weekFields.dayOfWeek(), 1)
+                                .toLocalDate()
+                                .atStartOfDay();
+                        return new TimeSeriesPointDTO(weekStart, entry.getValue());
+                    })
+                    .collect(Collectors.toList());
+        } else {
+            Map<LocalDateTime, Double> grouped = orders.stream()
+                    .collect(Collectors.groupingBy(
+                            order -> order.getCreatedAt().toLocalDate().atStartOfDay(),
+                            Collectors.summingDouble(order ->
+                                    order.getTotalAmount() != null ? order.getTotalAmount().doubleValue() : 0.0
+                            )
+                    ));
+
+            points = grouped.entrySet().stream()
+                    .sorted(Map.Entry.comparingByKey())
+                    .map(entry -> new TimeSeriesPointDTO(entry.getKey(), entry.getValue()))
+                    .collect(Collectors.toList());
+        }
+
+        return TimeSeriesDataDTO.builder()
+                .period(normalizedPeriod.toUpperCase(Locale.ROOT))
+                .points(points)
+                .build();
     }
 
     @Override

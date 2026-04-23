@@ -43,3 +43,7 @@
 ## v2026.04.22.9 - Last 90 days distribution fix
 - Updated `HistoricalOrderGenerator` to distribute orders day-by-day across the full date window rather than front-loading until target count is reached.
 - Daily volume is now derived from remaining orders and remaining days with bounded noise, ensuring seeded orders span the complete requested range (e.g., last 90 days).
+
+## v2026.04.23.1 - Product stock images and generic customer names
+- Updated `BaseEntitySeeder` product generation to assign deterministic stock-style image URLs using Picsum seeds (`https://picsum.photos/seed/...`) instead of plain placeholder text images.
+- Updated seeded customer names from numeric labels (`Customer 1..N`) to a reusable generic name pool (e.g., John Smith, Joseph Johnson, Mary Brown), while keeping seeded emails/phones unique.
